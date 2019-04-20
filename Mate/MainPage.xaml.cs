@@ -21,6 +21,9 @@ using System.Net.Http;
 using Windows.Networking.Sockets;
 using Windows.Networking;
 using Windows.Storage.Streams;
+using Windows.UI.ViewManagement;
+using Windows.ApplicationModel.Activation;
+using Windows.Networking.Connectivity;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 namespace Mate
@@ -31,16 +34,19 @@ namespace Mate
 
     public sealed partial class MainPage : Page
     {
-        private StreamSocketListener streamSocketListener;
+        private StreamSocketListener mStreamSocketListener;
+        private TextBlock mServerStatusTextBlock;
+        private const int SERVER_PORT = 26566;
+
         public async void startUp()
         {
             var hostName = new HostName("localhost");
             var socket = new StreamSocket();
 
-            streamSocketListener = new StreamSocketListener();
+            mStreamSocketListener = new StreamSocketListener();
 
-            streamSocketListener.ConnectionReceived += StreamSocketListener_ConnectionReceived;
-            await streamSocketListener.BindServiceNameAsync("26566").AsTask();
+            mStreamSocketListener.ConnectionReceived += StreamSocketListener_ConnectionReceived;
+            await mStreamSocketListener.BindServiceNameAsync(SERVER_PORT.ToString()).AsTask();
         }
 
         private void StreamSocketListener_ConnectionReceived(StreamSocketListener sender, StreamSocketListenerConnectionReceivedEventArgs args)
@@ -69,52 +75,41 @@ namespace Mate
                 Visual = visual
             };
 
-            var toast = new ToastNotification(content.GetXml());
-            toast.ExpirationTime = DateTime.Now.AddMinutes(5);
+            var toast = new ToastNotification(content.GetXml())
+            {
+                ExpirationTime = DateTime.Now.AddMinutes(5)
+            };
             ToastNotificationManager.CreateToastNotifier().Show(toast);
         }
 
         public MainPage()
         {
-            /*
-            Windows.Storage.StorageFolder storageFolder =
-                    Windows.Storage.ApplicationData.Current.LocalFolder;
-
-            async Task prepareAsync()
-            {
-
-                Windows.Storage.StorageFile statusFile =
-                    await storageFolder.CreateFileAsync("status.txt",
-                        Windows.Storage.CreationCollisionOption.ReplaceExisting);
-
-                await Windows.Storage.FileIO.WriteTextAsync(statusFile, "0");
-            };
-
-            async void startUp()
-            {
-                await prepareAsync();
-
-                Windows.Storage.StorageFile statusFile =
-                    await storageFolder.GetFileAsync("status.txt");
-
-                String status = await Windows.Storage.FileIO.ReadTextAsync(statusFile);
-                if (status == "0")
-                {
-                    Debug.WriteLine("Initial status ok: " + status + ".");
-                }
-                else
-                {
-                    Debug.WriteLine("Initialization failure, aborting.");
-                    System.Diagnostics.Debugger.Launch();
-                }
-            }
-
-            */
-
             this.InitializeComponent();
 
+            mServerStatusTextBlock = (TextBlock)FindName("ServerStatusTextBlock");
 
-            startUp();
+
+            var internetConnectionProfile = NetworkInformation.GetInternetConnectionProfile();
+            if (internetConnectionProfile.NetworkAdapter == null)
+            {
+                mServerStatusTextBlock.Text = "Para poder ejecutar esta aplicación, tenés que conectarte a una red.";
+            }
+            else
+            {
+                startUp();
+
+                String SERVER_IP = null;
+                foreach (HostName hostName in NetworkInformation.GetHostNames())
+                {
+                    if (hostName.Type == HostNameType.Ipv4)
+                    {
+                        SERVER_IP = hostName.ToString();
+                        break;
+                    }
+                }
+
+                mServerStatusTextBlock.Text = "El servidor está ejecutándose en " + SERVER_IP + ":" + SERVER_PORT + ".";
+            }
         }
     }
 }
